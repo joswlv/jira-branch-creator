@@ -42,7 +42,7 @@ jobs:
         run: |
           CHANGELOG="$(cat << 'EOM' | sed -e 's/^[[:space:]]*$//g' -e '/./,$!d'
           ${{ github.event.release.body }}
-          EOM
+          EOM†
           )"
           
           echo "changelog<<EOF" >> $GITHUB_OUTPUT
