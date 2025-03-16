@@ -1,4 +1,5 @@
 # Jira Branch Creator 릴리스 노트
+## [Unreleased]
 
 ## [0.1.0] - 2025-03-16
 
