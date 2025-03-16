@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<idea-plugin>
+    <id>io.joswlv.jirabranch</id>
+    <name>Jira Branch Creator</name>
+    <vendor>joswlv</vendor>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>Git4Idea</depends>
+
+    <resource-bundle>messages.JiraBranchBundle</resource-bundle>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- 애플리케이션 설정 -->
+        <applicationConfigurable
+                parentId="tools"
+                instance="io.joswlv.jirabranch.settings.AppSettingsComponent"
+                id="io.joswlv.jirabranch.settings.AppSettingsComponent"
+                displayName="Jira Branch Creator Settings"/>
+
+        <!-- 서비스 등록 -->
+        <applicationService
+                serviceImplementation="io.joswlv.jirabranch.config.AppSettingsState"
+                preload="true" />
+        <projectService
+                serviceImplementation="io.joswlv.jirabranch.services.JiraService"/>
+        <projectService
+                serviceImplementation="io.joswlv.jirabranch.services.GitService"/>
+
+        <!-- 상태 표시줄 위젯 -->
+        <statusBarWidgetFactory
+                id="io.joswlv.jirabranch.statusbar.JiraStatusWidgetFactory"
+                implementation="io.joswlv.jirabranch.statusbar.JiraStatusWidgetFactory"
+                order="first"/>
+
+        <!-- 알림 그룹 -->
+        <notificationGroup
+                id="Jira Branch Creator"
+                displayType="BALLOON"
+                displayName="Jira Branch Creator"/>
+
+        <!-- 시작 활동 -->
+        <postStartupActivity
+                implementation="io.joswlv.jirabranch.startup.JiraBranchPostStartupActivity"/>
+    </extensions>
+
+    <!-- 리스너 등록 -->
+    <applicationListeners>
+        <listener
+                class="io.joswlv.jirabranch.startup.JiraBranchProjectListener"
+                topic="com.intellij.openapi.project.ProjectManagerListener"/>
+    </applicationListeners>
+
+    <actions>
+        <!-- 브랜치 생성 액션 -->
+        <action id="io.joswlv.jirabranch.actions.CreateBranchFromJiraAction"
+                class="io.joswlv.jirabranch.actions.CreateBranchFromJiraAction"
+                text="Create Branch from JIRA Issue"
+                description="Search for JIRA issues and create a git branch">
+            <add-to-group group-id="Git.Menu" anchor="first"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="meta shift J"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl shift J" os="windows"/>
+        </action>
+
+        <!-- 커밋 생성 액션 -->
+        <action id="io.joswlv.jirabranch.actions.CreateCommitAction"
+                class="io.joswlv.jirabranch.actions.CreateCommitAction"
+                text="Commit with JIRA Issue"
+                description="Commit with JIRA issue key prefix">
+            <add-to-group group-id="Git.Menu" anchor="after" relative-to-action="io.joswlv.jirabranch.actions.CreateBranchFromJiraAction"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="meta ctrl J"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt J" os="windows"/>
+        </action>
+    </actions>
+</idea-plugin>
