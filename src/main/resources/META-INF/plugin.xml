@@ -19,8 +19,7 @@
 
         <!-- 서비스 등록 -->
         <applicationService
-                serviceImplementation="io.joswlv.jirabranch.config.AppSettingsState"
-                preload="true" />
+                serviceImplementation="io.joswlv.jirabranch.config.AppSettingsState"t/>
         <projectService
                 serviceImplementation="io.joswlv.jirabranch.services.JiraService"/>
         <projectService

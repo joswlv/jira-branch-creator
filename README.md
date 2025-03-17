@@ -1,5 +1,69 @@
 <!-- Plugin description -->
 # Jira Branch Creator
+
+Jira Branch Creator is an IntelliJ IDEA plugin that effectively integrates JIRA issues with Git workflow. This plugin allows you to easily create Git branches based on JIRA issues and automatically generate commit messages that include issue numbers.
+
+## Key Features
+
+- Create Git branches directly from JIRA issues assigned to the user
+- Generate new branches from a base branch (e.g. main, develop)
+- Support custom branch prefixes (feat/, bugfix/, etc.)
+- Include JIRA issue numbers in automatic commit messages
+- Convenient keyboard shortcuts
+
+## How to Use
+
+### Initial Setup
+
+1. Go to `Settings/Preferences` → `Tools` → `Jira Branch Creator`
+2. Enter JIRA connection information:
+- JIRA URL (e.g. https://your-domain.atlassian.net)
+- Username (JIRA account email)
+- API token (Click the issue button to get a token from the Atlassian website)
+3. Set base branch (default: main)
+4. Select desired branch prefix
+
+### Creating Branches from JIRA Issues
+
+1. Press keyboard shortcut `Cmd + Shift + J` (macOS) or `Ctrl + Shift + J` (Windows/Linux)
+2. Search or select JIRA issues in the search box
+3. Branch is automatically created and checked out based on the selected issue
+
+### Automatically Generate Commit Messages
+
+1. After completing code changes, press keyboard shortcut `Cmd + Ctrl + J` (macOS) or `Ctrl + Alt + J` (Windows/Linux)
+2. Enter commit message (JIRA issue number is automatically added)
+3. Click confirm button to complete commit
+
+## Detailed Features
+
+**Jira API Token Management**
+- Secure token storage and management
+- Test connection functionality to validate settings
+- Simple logout function
+
+**Git Branch Creation**
+- Create new branches from selected base branch (main, develop, etc.)
+- Apply configured branch prefix (feat/, bugfix/, etc.)
+- Branch naming convention including JIRA issue key (e.g. feat/DAP-999)
+
+**Git Commit Automation**
+- Automatically generate commit messages that include JIRA issue numbers
+- Verify changes before proceeding with commit
+- Provide detailed error messages in case of failure
+
+## License
+
+This project is distributed under the [Apache License](LICENSE).
+
+---
+*Jira Branch Creator is a third-party plugin created by an independent developer, not Atlassian. JIRA and related trademarks are the property of Atlassian.*
+<!-- Plugin description end -->
+
+<!-- Korean description below -->
+# 한국어 설명
+
+# Jira Branch Creator
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
 ![Version](https://img.shields.io/badge/version-0.1.0-blue)
 ![JetBrains Marketplace](https://img.shields.io/badge/jetbrains%20marketplace-compatible-orange)
@@ -69,7 +133,6 @@ A: Git 저장소가 제대로 초기화되어 있는지, 그리고 베이스 브
 
 ---
 *Jira Branch Creator는 Atlassian이 아닌 독립적인 개발자가 제작한 타사 플러그인입니다. JIRA 및 관련 상표는 Atlassian의 자산입니다.*
-<!-- Plugin description end -->
 
 ## 설치 방법
 
