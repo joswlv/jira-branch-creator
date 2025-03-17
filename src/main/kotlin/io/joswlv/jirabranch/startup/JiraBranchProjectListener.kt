@@ -20,7 +20,6 @@ class JiraBranchProjectListener : ProjectManagerListener {
         ApplicationManager.getApplication().invokeLater {
             try {
                 val jiraService = project.service<JiraService>()
-                // 필요한 경우 여기서 추가 초기화 작업 수행
             } catch (e: Exception) {
                 LOG.error("JiraService 초기화 중 오류 발생", e)
             }

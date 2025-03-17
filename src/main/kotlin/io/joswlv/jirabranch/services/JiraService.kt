@@ -1,6 +1,5 @@
 package io.joswlv.jirabranch.services
 
-import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
@@ -9,13 +8,10 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.MessageDialogBuilder
-import com.intellij.diagnostic.LoadingState
-import com.intellij.ide.BrowserUtil
+import com.intellij.openapi.ui.Messages
 import io.joswlv.jirabranch.JiraBranchBundle
 import io.joswlv.jirabranch.config.AppSettingsState
-import io.joswlv.jirabranch.dialog.TokenSetupDialog
 import io.joswlv.jirabranch.model.JiraIssue
 import io.joswlv.jirabranch.settings.AppSettingsComponent
 import io.joswlv.jirabranch.utils.UrlUtils
@@ -24,8 +20,7 @@ import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
-import java.util.Base64
-import java.util.concurrent.ConcurrentHashMap
+import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -34,12 +29,9 @@ import java.util.concurrent.Executors
  */
 @Service(Service.Level.PROJECT)
 class JiraService(private val project: Project) {
-    private val LOG = Logger.getInstance(JiraService::class.java)
+    private val logger = Logger.getInstance(JiraService::class.java)
     private var initialized = false
     private val executor: ExecutorService = Executors.newCachedThreadPool()
-
-    private val issueCache = ConcurrentHashMap<String, Pair<JiraIssue, Long>>()
-    private val CACHE_EXPIRY_MS = 5 * 60 * 1000 // 5분
 
     /**
      * 서비스가 안전하게 초기화되었는지 확인
@@ -49,14 +41,25 @@ class JiraService(private val project: Project) {
     fun ensureInitialized(): Boolean {
         if (initialized) return true
 
-        // 애플리케이션이 적절한 상태인지 확인
+        // 내부 API인 LoadingState 사용 대신 애플리케이션 상태 확인 방법 변경
         val app = ApplicationManager.getApplication()
-        if (!app.isUnitTestMode && !LoadingState.COMPONENTS_LOADED.isOccurred) {
-            LOG.warn("COMPONENTS_LOADED 상태 전에 JiraService 초기화 시도. 나중에 다시 시도합니다.")
-            return false
+
+        // 유닛 테스트 모드 확인은 유지
+        if (!app.isUnitTestMode) {
+            // 애플리케이션이 종료 중인지 확인 (더 안전한 방법)
+            if (app.isDisposed) {
+                logger.warn("애플리케이션이 이미 종료되었습니다. 서비스를 초기화할 수 없습니다.")
+                return false
+            }
+
+            // 헤드리스 모드 확인 (UI가 없을 때는 다르게 처리)
+            if (app.isHeadlessEnvironment) {
+                logger.info("헤드리스 환경에서 실행 중입니다. 제한된 기능으로 초기화합니다.")
+            }
         }
 
         initialized = true
+        logger.info("JiraService가 성공적으로 초기화되었습니다.")
         return true
     }
 
@@ -64,12 +67,12 @@ class JiraService(private val project: Project) {
      * 시작 시 호출되는 사전 초기화 메서드
      */
     fun preInitialize() {
-        LOG.info("JiraService 사전 초기화 중...")
+        logger.info("JiraService 사전 초기화 중...")
 
         // 설정만 확인하고 실제 초기화는 나중에 수행
         val settings = AppSettingsState.getInstance()
         if (settings.isJiraConfigured()) {
-            LOG.info("JIRA 설정이 구성되어 있습니다.")
+            logger.info("JIRA 설정이 구성되어 있습니다.")
         }
     }
 
@@ -80,16 +83,16 @@ class JiraService(private val project: Project) {
     fun checkJiraSettings(): Boolean {
         // 먼저 초기화 상태 확인
         if (!ensureInitialized()) {
-            LOG.warn("서비스가 아직 초기화되지 않았습니다.")
+            logger.warn("서비스가 아직 초기화되지 않았습니다.")
             return false
         }
 
         val settings = AppSettingsState.getInstance()
 
-        LOG.info("JIRA 설정 확인 중... 구성됨: ${settings.isJiraConfigured()}")
+        logger.info("JIRA 설정 확인 중... 구성됨: ${settings.isJiraConfigured()}")
 
         if (!settings.isJiraConfigured()) {
-            LOG.info("JIRA가 구성되지 않았습니다. 대화 상자 표시 중...")
+            logger.info("JIRA가 구성되지 않았습니다. 대화 상자 표시 중...")
 
             // MessageDialogBuilder를 사용하여 대화 상자 표시 - 두 개의 버튼만 표시
             val result = MessageDialogBuilder.yesNo(
@@ -124,7 +127,7 @@ class JiraService(private val project: Project) {
     fun getMyIssues(): List<JiraIssue> {
         // 서비스가 초기화되었는지 확인
         if (!ensureInitialized()) {
-            LOG.warn("서비스가 아직 초기화되지 않았습니다. 이슈를 가져올 수 없습니다.")
+            logger.warn("서비스가 아직 초기화되지 않았습니다. 이슈를 가져올 수 없습니다.")
             return emptyList()
         }
 
@@ -135,12 +138,12 @@ class JiraService(private val project: Project) {
         try {
             // 단순하고 안전한 JQL 쿼리 사용
             val jql = "assignee=currentUser() AND resolution=Unresolved ORDER BY updated DESC"
-            LOG.info("JQL 쿼리 실행 중: $jql")
+            logger.info("JQL 쿼리 실행 중: $jql")
             val issues = searchIssues(jql)
-            LOG.info("${issues.size}개의 이슈를 찾았습니다")
+            logger.info("${issues.size}개의 이슈를 찾았습니다")
             return issues
         } catch (e: Exception) {
-            LOG.error("이슈 가져오기 오류: ${e.message}", e)
+            logger.error("이슈 가져오기 오류: ${e.message}", e)
             showNotification(
                 JiraBranchBundle.message("error.jira.search"),
                 e.message ?: JiraBranchBundle.message("error.jira.search.details"),
@@ -156,7 +159,7 @@ class JiraService(private val project: Project) {
     fun searchIssuesByKeyword(keyword: String): List<JiraIssue> {
         // 서비스가 초기화되었는지 확인
         if (!ensureInitialized()) {
-            LOG.warn("서비스가 아직 초기화되지 않았습니다. 이슈를 검색할 수 없습니다.")
+            logger.warn("서비스가 아직 초기화되지 않았습니다. 이슈를 검색할 수 없습니다.")
             return emptyList()
         }
 
@@ -188,24 +191,24 @@ class JiraService(private val project: Project) {
                 "resolution = Unresolved ORDER BY updated DESC"
             }
 
-            LOG.info("JQL 쿼리 실행 중: $finalJql")
+            logger.info("JQL 쿼리 실행 중: $finalJql")
             val issues = searchIssues(finalJql)
-            LOG.info("'$keyword' 키워드와 일치하는 ${issues.size}개의 이슈를 찾았습니다")
+            logger.info("'$keyword' 키워드와 일치하는 ${issues.size}개의 이슈를 찾았습니다")
             return issues
         } catch (e: Exception) {
-            LOG.error("이슈 검색 오류: ${e.message}", e)
+            logger.error("이슈 검색 오류: ${e.message}", e)
 
             // 오류 발생 시 재시도 로직 - 최대한 단순한 쿼리로 시도
             try {
-                LOG.info("검색 실패 - 기본 쿼리로 재시도합니다")
+                logger.info("검색 실패 - 기본 쿼리로 재시도합니다")
                 // 가장 기본적인 쿼리로 재시도
                 val simpleJql = "resolution = Unresolved ORDER BY updated DESC"
-                LOG.info("단순 JQL 쿼리 실행 중: $simpleJql")
+                logger.info("단순 JQL 쿼리 실행 중: $simpleJql")
                 val issues = searchIssues(simpleJql)
-                LOG.info("단순 쿼리로 ${issues.size}개의 이슈를 찾았습니다")
+                logger.info("단순 쿼리로 ${issues.size}개의 이슈를 찾았습니다")
                 return issues
             } catch (retryException: Exception) {
-                LOG.error("단순 쿼리로도 실패: ${retryException.message}", retryException)
+                logger.error("단순 쿼리로도 실패: ${retryException.message}", retryException)
                 showNotification(
                     JiraBranchBundle.message("error.jira.search"),
                     "검색 실패: ${retryException.message}",
@@ -228,11 +231,11 @@ class JiraService(private val project: Project) {
             val encodedJql = java.net.URLEncoder.encode(jql, "UTF-8")
             val endpoint = "$jiraUrl/rest/api/2/search?jql=$encodedJql&startAt=0&maxResults=50&fields=summary,description,status,assignee,issuetype,priority"
 
-            LOG.debug("JIRA 검색 요청: GET $endpoint")
+            logger.debug("JIRA 검색 요청: GET $endpoint")
             val response = executeGetRequest(endpoint)
 
             if (response.first !in 200..299) {
-                LOG.error("JQL 검색 실행 오류: $jql, HTTP ${response.first}, 응답: ${response.second}")
+                logger.error("JQL 검색 실행 오류: $jql, HTTP ${response.first}, 응답: ${response.second}")
 
                 // 오류 응답 본문에서 자세한 오류 메시지 추출 시도
                 var errorDetails = "API 요청 실패: HTTP ${response.first}"
@@ -245,7 +248,7 @@ class JiraService(private val project: Project) {
                     }
                 } catch (e: Exception) {
                     // JSON 파싱 실패 시 기본 메시지 사용
-                    LOG.warn("오류 응답 파싱 실패: ${e.message}")
+                    logger.warn("오류 응답 파싱 실패: ${e.message}")
                 }
 
                 throw Exception(errorDetails)
@@ -253,19 +256,19 @@ class JiraService(private val project: Project) {
 
             // 응답이 성공적으로 왔지만 내용이 비어있는지 확인
             if (response.second.isBlank()) {
-                LOG.warn("JIRA API 응답이 비어 있습니다.")
+                logger.warn("JIRA API 응답이 비어 있습니다.")
                 return emptyList()
             }
 
             // 응답 디버그 로깅 - 처음 100자만 표시
             val previewLength = minOf(100, response.second.length)
-            LOG.debug("JIRA API 응답 미리보기 (처음 ${previewLength}자): ${response.second.substring(0, previewLength)}...")
+            logger.debug("JIRA API 응답 미리보기 (처음 ${previewLength}자): ${response.second.substring(0, previewLength)}...")
 
             val issues = parseSearchResult(response.second)
-            LOG.info("파싱된 이슈 수: ${issues.size}")
+            logger.info("파싱된 이슈 수: ${issues.size}")
             return issues
         } catch (e: Exception) {
-            LOG.error("JQL 검색 실행 오류: $jql", e)
+            logger.error("JQL 검색 실행 오류: $jql", e)
             throw e
         }
     }
@@ -278,14 +281,14 @@ class JiraService(private val project: Project) {
             val jsonObject = JsonParser.parseString(jsonString).asJsonObject
 
             // 디버그 로깅 - 전체 응답 구조 확인
-            LOG.debug("JSON 응답 파싱 시작: ${jsonObject.keySet()}")
-            LOG.debug("총 이슈 수: ${jsonObject.get("total")?.asInt}")
+            logger.debug("JSON 응답 파싱 시작: ${jsonObject.keySet()}")
+            logger.debug("총 이슈 수: ${jsonObject.get("total")?.asInt}")
 
             val issues = jsonObject.getAsJsonArray("issues") ?: return emptyList()
-            LOG.debug("이슈 배열 크기: ${issues.size()}")
+            logger.debug("이슈 배열 크기: ${issues.size()}")
 
             if (issues.size() == 0) {
-                LOG.warn("검색 결과에 이슈가 없습니다.")
+                logger.warn("검색 결과에 이슈가 없습니다.")
                 return emptyList()
             }
 
@@ -295,7 +298,7 @@ class JiraService(private val project: Project) {
                     val key = issue.get("key").asString
                     val fields = issue.getAsJsonObject("fields")
 
-                    LOG.debug("이슈 키 파싱: $key, 필드 키셋: ${fields.keySet()}")
+                    logger.debug("이슈 키 파싱: $key, 필드 키셋: ${fields.keySet()}")
 
                     val summary = fields.get("summary")?.asString
 
@@ -323,7 +326,7 @@ class JiraService(private val project: Project) {
                     val settings = AppSettingsState.getInstance()
                     val url = "${UrlUtils.sanitizeUrl(settings.jiraUrl)}/browse/$key"
 
-                    LOG.debug("이슈 파싱 완료: $key - $summary")
+                    logger.debug("이슈 파싱 완료: $key - $summary")
 
                     JiraIssue(
                         key = key,
@@ -336,13 +339,13 @@ class JiraService(private val project: Project) {
                         url = url
                     )
                 } catch (e: Exception) {
-                    LOG.error("개별 이슈 파싱 중 오류: ${e.message}", e)
+                    logger.error("개별 이슈 파싱 중 오류: ${e.message}", e)
                     // 개별 이슈 파싱 오류시에도 전체 프로세스가 중단되지 않도록 null 반환
                     null
                 }
             }.filterNotNull() // null 항목 제거
         } catch (e: Exception) {
-            LOG.error("JSON 파싱 오류: ${e.message}", e)
+            logger.error("JSON 파싱 오류: ${e.message}", e)
             throw e
         }
     }
@@ -389,7 +392,7 @@ class JiraService(private val project: Project) {
                 url = url
             )
         } catch (e: Exception) {
-            LOG.error("JSON 파싱 오류: ${e.message}", e)
+            logger.error("JSON 파싱 오류: ${e.message}", e)
             return null
         }
     }
@@ -418,19 +421,19 @@ class JiraService(private val project: Project) {
             connection.setRequestProperty("X-Atlassian-Token", "no-check")
 
             // 디버그 로깅
-            LOG.debug("JIRA API 요청 URL: $url")
-            LOG.debug("JIRA API 요청 메소드: ${connection.requestMethod}")
+            logger.debug("JIRA API 요청 URL: $url")
+            logger.debug("JIRA API 요청 메소드: ${connection.requestMethod}")
 
             // 모든 요청 헤더 로깅 (보안 정보 제외)
-            LOG.debug("JIRA API 요청 헤더: Content-Type: ${connection.getRequestProperty("Content-Type")}")
-            LOG.debug("JIRA API 요청 헤더: Accept: ${connection.getRequestProperty("Accept")}")
-            LOG.debug("JIRA API 요청 헤더: X-Atlassian-Token: ${connection.getRequestProperty("X-Atlassian-Token")}")
-            LOG.debug("JIRA API 요청 헤더: Authorization: Basic [인증 정보 숨김]")
+            logger.debug("JIRA API 요청 헤더: Content-Type: ${connection.getRequestProperty("Content-Type")}")
+            logger.debug("JIRA API 요청 헤더: Accept: ${connection.getRequestProperty("Accept")}")
+            logger.debug("JIRA API 요청 헤더: X-Atlassian-Token: ${connection.getRequestProperty("X-Atlassian-Token")}")
+            logger.debug("JIRA API 요청 헤더: Authorization: Basic [인증 정보 숨김]")
 
             // 응답 읽기
             val statusCode = connection.responseCode
             val responseMessage = connection.responseMessage
-            LOG.debug("JIRA API 응답 코드: $statusCode ($responseMessage)")
+            logger.debug("JIRA API 응답 코드: $statusCode ($responseMessage)")
 
             val inputStream = if (statusCode >= 400) connection.errorStream else connection.inputStream
             val reader = BufferedReader(InputStreamReader(inputStream, "UTF-8"))
@@ -438,12 +441,12 @@ class JiraService(private val project: Project) {
 
             // 오류 응답 로깅
             if (statusCode >= 400) {
-                LOG.debug("JIRA API 오류 응답: $response")
+                logger.debug("JIRA API 오류 응답: $response")
             }
 
             return Pair(statusCode, response)
         } catch (e: Exception) {
-            LOG.error("HTTP GET 요청 실패: ${e.message}", e)
+            logger.error("HTTP GET 요청 실패: ${e.message}", e)
             return Pair(500, """{"errorMessages":["${e.message?.replace("\"", "\\\"") ?: "알 수 없는 오류"}"]}""")
         } finally {
             connection.disconnect()
@@ -475,15 +478,15 @@ class JiraService(private val project: Project) {
             connection.setRequestProperty("X-Atlassian-Token", "no-check")
 
             // 디버그 로깅
-            LOG.debug("JIRA API 요청 URL: $url")
-            LOG.debug("JIRA API 요청 메소드: ${connection.requestMethod}")
-            LOG.debug("JIRA API 요청 본문: $jsonPayload")
+            logger.debug("JIRA API 요청 URL: $url")
+            logger.debug("JIRA API 요청 메소드: ${connection.requestMethod}")
+            logger.debug("JIRA API 요청 본문: $jsonPayload")
 
             // 모든 요청 헤더 로깅 (보안 정보 제외)
-            LOG.debug("JIRA API 요청 헤더: Content-Type: ${connection.getRequestProperty("Content-Type")}")
-            LOG.debug("JIRA API 요청 헤더: Accept: ${connection.getRequestProperty("Accept")}")
-            LOG.debug("JIRA API 요청 헤더: X-Atlassian-Token: ${connection.getRequestProperty("X-Atlassian-Token")}")
-            LOG.debug("JIRA API 요청 헤더: Authorization: Basic [인증 정보 숨김]")
+            logger.debug("JIRA API 요청 헤더: Content-Type: ${connection.getRequestProperty("Content-Type")}")
+            logger.debug("JIRA API 요청 헤더: Accept: ${connection.getRequestProperty("Accept")}")
+            logger.debug("JIRA API 요청 헤더: X-Atlassian-Token: ${connection.getRequestProperty("X-Atlassian-Token")}")
+            logger.debug("JIRA API 요청 헤더: Authorization: Basic [인증 정보 숨김]")
 
             // 요청 본문 작성
             OutputStreamWriter(connection.outputStream, "UTF-8").use { writer ->
@@ -494,7 +497,7 @@ class JiraService(private val project: Project) {
             // 응답 읽기
             val statusCode = connection.responseCode
             val responseMessage = connection.responseMessage
-            LOG.debug("JIRA API 응답 코드: $statusCode ($responseMessage)")
+            logger.debug("JIRA API 응답 코드: $statusCode ($responseMessage)")
 
             val inputStream = if (statusCode >= 400) connection.errorStream else connection.inputStream
             val reader = BufferedReader(InputStreamReader(inputStream, "UTF-8"))
@@ -502,12 +505,12 @@ class JiraService(private val project: Project) {
 
             // 오류 응답 로깅
             if (statusCode >= 400) {
-                LOG.debug("JIRA API 오류 응답: $response")
+                logger.debug("JIRA API 오류 응답: $response")
             }
 
             return Pair(statusCode, response)
         } catch (e: Exception) {
-            LOG.error("HTTP POST 요청 실패: ${e.message}", e)
+            logger.error("HTTP POST 요청 실패: ${e.message}", e)
             return Pair(500, """{"errorMessages":["${e.message?.replace("\"", "\\\"") ?: "알 수 없는 오류"}"]}""")
         } finally {
             connection.disconnect()
@@ -524,7 +527,7 @@ class JiraService(private val project: Project) {
                 notificationGroup.createNotification(title, content, type).notify(project)
             }
         } catch (e: Exception) {
-            LOG.error("알림 표시 실패: $title - $content", e)
+            logger.error("알림 표시 실패: $title - $content", e)
         }
     }
 
