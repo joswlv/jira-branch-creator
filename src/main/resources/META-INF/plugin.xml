@@ -19,7 +19,7 @@
 
         <!-- 서비스 등록 -->
         <applicationService
-                serviceImplementation="io.joswlv.jirabranch.config.AppSettingsState"t/>
+                serviceImplementation="io.joswlv.jirabranch.config.AppSettingsState"/>
         <projectService
                 serviceImplementation="io.joswlv.jirabranch.services.JiraService"/>
         <projectService
