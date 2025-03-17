@@ -55,7 +55,7 @@
         <action id="io.joswlv.jirabranch.actions.CreateBranchFromJiraAction"
                 class="io.joswlv.jirabranch.actions.CreateBranchFromJiraAction"
                 text="Create Branch from JIRA Issue"
-                description="Search for JIRA issues and create a git branch">
+                description="Searching JIRA issues and create branch">
             <add-to-group group-id="Git.Menu" anchor="first"/>
             <keyboard-shortcut keymap="$default" first-keystroke="meta shift J"/>
             <keyboard-shortcut keymap="$default" first-keystroke="ctrl shift J" os="windows"/>
