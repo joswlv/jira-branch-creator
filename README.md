@@ -38,10 +38,6 @@ Jira Branch Creator는 JIRA 이슈와 Git 워크플로우를 효과적으로 통
 2. 커밋 메시지 입력 (JIRA 이슈 번호는 자동으로 추가됨)
 3. 확인 버튼 클릭하여 커밋 완료
 
-## 데모 영상
-
-![Jira Branch Creator 데모](./.github/readme/)
-
 ## 기능 상세
 
 **Jira API 토큰 관리**
