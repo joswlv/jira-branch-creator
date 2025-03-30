@@ -38,17 +38,9 @@
                 displayName="Jira Branch Creator"/>
 
         <!-- 시작 활동 -->
-        <postStartupActivity
-                implementation="io.joswlv.jirabranch.startup.JiraBranchPostStartupActivity"/>
+        <startupActivity
+                implementation="io.joswlv.jirabranch.startup.JiraBranchStartupActivity"/>
     </extensions>
-
-    <!-- 리스너 등록 -->
-    <applicationListeners>
-        <listener
-                class="io.joswlv.jirabranch.startup.JiraBranchProjectListener"
-                topic="com.intellij.openapi.project.ProjectManagerListener"/>
-    </applicationListeners>
-
     <actions>
         <!-- 브랜치 생성 액션 -->
         <action id="io.joswlv.jirabranch.actions.CreateBranchFromJiraAction"

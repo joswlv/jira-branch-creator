@@ -19,7 +19,9 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
+import java.net.URI
 import java.net.URL
+import java.nio.charset.StandardCharsets
 import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -401,55 +403,24 @@ class JiraService(private val project: Project) {
      * HTTP GET 요청 실행 - BasicAuth 인증 사용
      */
     private fun executeGetRequest(url: String): Pair<Int, String> {
-        val settings = AppSettingsState.getInstance()
-        val connection = URL(url).openConnection() as HttpURLConnection
+        val connection: HttpURLConnection
+        val response: String
 
         try {
-            // 기본 설정
+            val uri = URI(url)
+            connection = uri.toURL().openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
-            connection.connectTimeout = 15000 // 타임아웃 증가
-            connection.readTimeout = 15000    // 타임아웃 증가
-            connection.setRequestProperty("Content-Type", "application/json")
             connection.setRequestProperty("Accept", "application/json")
 
-            // BasicAuth 인증 헤더 설정
-            val authString = "${settings.jiraUsername}:${settings.jiraApiToken}"
-            val encodedAuth = Base64.getEncoder().encodeToString(authString.toByteArray())
-            connection.setRequestProperty("Authorization", "Basic $encodedAuth")
-
-            // X-Atlassian-Token 헤더 추가(CSRF 보호)
-            connection.setRequestProperty("X-Atlassian-Token", "no-check")
-
-            // 디버그 로깅
-            logger.debug("JIRA API 요청 URL: $url")
-            logger.debug("JIRA API 요청 메소드: ${connection.requestMethod}")
-
-            // 모든 요청 헤더 로깅 (보안 정보 제외)
-            logger.debug("JIRA API 요청 헤더: Content-Type: ${connection.getRequestProperty("Content-Type")}")
-            logger.debug("JIRA API 요청 헤더: Accept: ${connection.getRequestProperty("Accept")}")
-            logger.debug("JIRA API 요청 헤더: X-Atlassian-Token: ${connection.getRequestProperty("X-Atlassian-Token")}")
-            logger.debug("JIRA API 요청 헤더: Authorization: Basic [인증 정보 숨김]")
-
-            // 응답 읽기
-            val statusCode = connection.responseCode
-            val responseMessage = connection.responseMessage
-            logger.debug("JIRA API 응답 코드: $statusCode ($responseMessage)")
-
-            val inputStream = if (statusCode >= 400) connection.errorStream else connection.inputStream
-            val reader = BufferedReader(InputStreamReader(inputStream, "UTF-8"))
-            val response = reader.use { it.readText() }
-
-            // 오류 응답 로깅
-            if (statusCode >= 400) {
-                logger.debug("JIRA API 오류 응답: $response")
+            val responseCode = connection.responseCode
+            BufferedReader(InputStreamReader(connection.inputStream, StandardCharsets.UTF_8)).use { reader ->
+                response = reader.readText()
             }
 
-            return Pair(statusCode, response)
+            return Pair(responseCode, response)
         } catch (e: Exception) {
-            logger.error("HTTP GET 요청 실패: ${e.message}", e)
-            return Pair(500, """{"errorMessages":["${e.message?.replace("\"", "\\\"") ?: "알 수 없는 오류"}"]}""")
-        } finally {
-            connection.disconnect()
+            logger.error("Error during GET request to $url", e)
+            throw e
         }
     }
 
@@ -457,65 +428,32 @@ class JiraService(private val project: Project) {
      * HTTP POST 요청 실행 - BasicAuth 인증 사용
      */
     private fun executePostRequest(url: String, jsonPayload: String): Pair<Int, String> {
-        val settings = AppSettingsState.getInstance()
-        val connection = URL(url).openConnection() as HttpURLConnection
+        val connection: HttpURLConnection
+        val response: String
 
         try {
-            // 기본 설정
+            val uri = URI(url)
+            connection = uri.toURL().openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
-            connection.connectTimeout = 15000 // 타임아웃 증가
-            connection.readTimeout = 15000    // 타임아웃 증가
             connection.doOutput = true
             connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
-            connection.setRequestProperty("Accept", "application/json")
 
-            // BasicAuth 인증 헤더 설정
-            val authString = "${settings.jiraUsername}:${settings.jiraApiToken}"
-            val encodedAuth = Base64.getEncoder().encodeToString(authString.toByteArray())
-            connection.setRequestProperty("Authorization", "Basic $encodedAuth")
-
-            // X-Atlassian-Token 헤더 추가(CSRF 보호)
-            connection.setRequestProperty("X-Atlassian-Token", "no-check")
-
-            // 디버그 로깅
-            logger.debug("JIRA API 요청 URL: $url")
-            logger.debug("JIRA API 요청 메소드: ${connection.requestMethod}")
-            logger.debug("JIRA API 요청 본문: $jsonPayload")
-
-            // 모든 요청 헤더 로깅 (보안 정보 제외)
-            logger.debug("JIRA API 요청 헤더: Content-Type: ${connection.getRequestProperty("Content-Type")}")
-            logger.debug("JIRA API 요청 헤더: Accept: ${connection.getRequestProperty("Accept")}")
-            logger.debug("JIRA API 요청 헤더: X-Atlassian-Token: ${connection.getRequestProperty("X-Atlassian-Token")}")
-            logger.debug("JIRA API 요청 헤더: Authorization: Basic [인증 정보 숨김]")
-
-            // 요청 본문 작성
-            OutputStreamWriter(connection.outputStream, "UTF-8").use { writer ->
+            OutputStreamWriter(connection.outputStream, StandardCharsets.UTF_8).use { writer ->
                 writer.write(jsonPayload)
-                writer.flush()
             }
 
-            // 응답 읽기
-            val statusCode = connection.responseCode
-            val responseMessage = connection.responseMessage
-            logger.debug("JIRA API 응답 코드: $statusCode ($responseMessage)")
-
-            val inputStream = if (statusCode >= 400) connection.errorStream else connection.inputStream
-            val reader = BufferedReader(InputStreamReader(inputStream, "UTF-8"))
-            val response = reader.use { it.readText() }
-
-            // 오류 응답 로깅
-            if (statusCode >= 400) {
-                logger.debug("JIRA API 오류 응답: $response")
+            val responseCode = connection.responseCode
+            BufferedReader(InputStreamReader(connection.inputStream, StandardCharsets.UTF_8)).use { reader ->
+                response = reader.readText()
             }
 
-            return Pair(statusCode, response)
+            return Pair(responseCode, response)
         } catch (e: Exception) {
-            logger.error("HTTP POST 요청 실패: ${e.message}", e)
-            return Pair(500, """{"errorMessages":["${e.message?.replace("\"", "\\\"") ?: "알 수 없는 오류"}"]}""")
-        } finally {
-            connection.disconnect()
+            logger.error("Error during POST request to $url", e)
+            throw e
         }
     }
+
 
     /**
      * 알림 표시
