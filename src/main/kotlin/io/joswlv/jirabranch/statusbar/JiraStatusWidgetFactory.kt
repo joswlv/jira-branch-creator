@@ -69,7 +69,7 @@ class JiraStatusWidgetFactory : StatusBarWidgetFactory {
             return this
         }
 
-        override fun getClickConsumer(): Consumer<MouseEvent>? = Consumer { event ->
+        override fun getClickConsumer(): Consumer<MouseEvent>? = Consumer {
             val issueKey = getIssueKeyFromCurrentBranch() ?: return@Consumer
             try {
                 val settings = AppSettingsState.getInstance()

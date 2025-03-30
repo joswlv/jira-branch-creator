@@ -16,7 +16,7 @@ class JiraBranchStartupActivity : StartupActivity {
         LOG.info("프로젝트 초기화 완료: ${project.name}")
 
         try {
-            val jiraService = project.service<JiraService>()
+            project.service<JiraService>()
         } catch (e: Exception) {
             LOG.error("JiraService 초기화 중 오류 발생", e)
         }

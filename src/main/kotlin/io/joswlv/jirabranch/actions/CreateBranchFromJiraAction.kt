@@ -17,7 +17,6 @@ import git4idea.GitUtil
 import io.joswlv.jirabranch.JiraBranchBundle
 import io.joswlv.jirabranch.config.AppSettingsState
 import io.joswlv.jirabranch.dialog.JiraIssueSearchDialog
-import io.joswlv.jirabranch.dialog.TokenSetupDialog
 import io.joswlv.jirabranch.services.GitService
 import io.joswlv.jirabranch.settings.AppSettingsComponent
 
@@ -43,7 +42,7 @@ class CreateBranchFromJiraAction : AnAction(), DumbAware {
 
         // JIRA 설정 확인
         if (!settings.isJiraConfigured()) {
-            handleUnconfiguredJira(project, settings)?.let {
+            handleUnconfiguredJira(project).let {
                 if (it == DialogWrapper.CANCEL_EXIT_CODE) return
             }
         }
@@ -51,7 +50,7 @@ class CreateBranchFromJiraAction : AnAction(), DumbAware {
         showIssueSearchDialog(project)
     }
 
-    private fun handleUnconfiguredJira(project: Project, settings: AppSettingsState): Int? {
+    private fun handleUnconfiguredJira(project: Project): Int {
         // MessageDialogBuilder를 사용하여 대화 상자 표시 - 두 개의 버튼만 표시
         val result = MessageDialogBuilder.yesNo(
             JiraBranchBundle.message("dialog.search.title"),
