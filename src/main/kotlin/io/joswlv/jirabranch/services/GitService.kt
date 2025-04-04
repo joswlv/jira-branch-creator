@@ -20,9 +20,16 @@ import io.joswlv.jirabranch.model.JiraIssue
 /**
  * Git 작업을 처리하는 서비스 클래스
  */
-@Service
+@Service(Service.Level.PROJECT)
 class GitService(private val project: Project) {
     private val LOG = Logger.getInstance(GitService::class.java)
+
+    companion object {
+        @JvmStatic
+        fun getInstance(project: Project): GitService {
+            return project.getService(GitService::class.java)
+        }
+    }
 
     /**
      * JIRA 이슈 기반으로 브랜치 이름 생성
@@ -288,7 +295,8 @@ class GitService(private val project: Project) {
     private fun showNotification(title: String, content: String, type: NotificationType) {
         try {
             ApplicationManager.getApplication().invokeLater {
-                val notificationGroup = NotificationGroupManager.getInstance().getNotificationGroup("Jira Branch Creator")
+                val notificationGroup =
+                    NotificationGroupManager.getInstance().getNotificationGroup("Jira Branch Creator")
                 notificationGroup.createNotification(title, content, type).notify(project)
             }
         } catch (e: Exception) {

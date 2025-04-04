@@ -1,6 +1,5 @@
 package io.joswlv.jirabranch.dialog
 
-import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.util.Disposer
@@ -16,14 +15,18 @@ import io.joswlv.jirabranch.model.JiraIssue
 import io.joswlv.jirabranch.services.JiraService
 import java.awt.BorderLayout
 import java.awt.Dimension
-import javax.swing.*
+import javax.swing.JComponent
+import javax.swing.JLabel
+import javax.swing.JList
+import javax.swing.JPanel
+import javax.swing.ListSelectionModel
 import javax.swing.event.DocumentEvent
 
 /**
  * JIRA 이슈 검색 다이얼로그
  */
 class JiraIssueSearchDialog(private val project: Project) : DialogWrapper(project) {
-    private val jiraService = project.service<JiraService>()
+    private val jiraService = JiraService.getInstance(project)
     private val searchField = SearchTextField()
     private val issueList = JBList<JiraIssue>()
     private val listModel = CollectionListModel<JiraIssue>()
@@ -67,7 +70,7 @@ class JiraIssueSearchDialog(private val project: Project) : DialogWrapper(projec
         val searchPanel = JPanel(BorderLayout()).apply {
             add(JLabel(JiraBranchBundle.message("dialog.search.label")), BorderLayout.WEST)
             add(searchField, BorderLayout.CENTER)
-            border = JBUI.Borders.empty(0, 0, 10, 0)
+            border = JBUI.Borders.emptyBottom(10)
         }
 
         val scrollPane = JBScrollPane(issueList)

@@ -20,9 +20,9 @@ import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URI
-import java.net.URL
 import java.nio.charset.StandardCharsets
-import java.util.*
+import java.util.Base64
+import java.util.concurrent.Callable
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -34,6 +34,13 @@ class JiraService(private val project: Project) {
     private val logger = Logger.getInstance(JiraService::class.java)
     private var initialized = false
     private val executor: ExecutorService = Executors.newCachedThreadPool()
+
+    companion object {
+        @JvmStatic
+        fun getInstance(project: Project): JiraService {
+            return project.getService(JiraService::class.java)
+        }
+    }
 
     /**
      * 서비스가 안전하게 초기화되었는지 확인
@@ -71,7 +78,6 @@ class JiraService(private val project: Project) {
     fun preInitialize() {
         logger.info("JiraService 사전 초기화 중...")
 
-        // 설정만 확인하고 실제 초기화는 나중에 수행
         val settings = AppSettingsState.getInstance()
         if (settings.isJiraConfigured()) {
             logger.info("JIRA 설정이 구성되어 있습니다.")
@@ -403,69 +409,126 @@ class JiraService(private val project: Project) {
      * HTTP GET 요청 실행 - BasicAuth 인증 사용
      */
     private fun executeGetRequest(url: String): Pair<Int, String> {
-        val connection: HttpURLConnection
-        val response: String
+        // EDT에서 호출된 경우 백그라운드 스레드로 전환
+        if (ApplicationManager.getApplication().isDispatchThread) {
+            val future = executor.submit(Callable<Pair<Int, String>> {
+                doExecuteGetRequest(url)
+            })
+            return future.get() // 결과 대기
+        }
 
+        return doExecuteGetRequest(url)
+    }
+
+    /**
+     * 실제 GET 요청 실행 로직
+     */
+    private fun doExecuteGetRequest(url: String): Pair<Int, String> {
+        var connection: HttpURLConnection? = null
         try {
+            val settings = AppSettingsState.getInstance()
+            val auth = "${settings.jiraUsername}:${settings.jiraApiToken}"
+            val encodedAuth = Base64.getEncoder().encodeToString(auth.toByteArray(StandardCharsets.UTF_8))
+
             val uri = URI(url)
             connection = uri.toURL().openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
+            connection.setRequestProperty("Authorization", "Basic $encodedAuth")
+            connection.setRequestProperty("Content-Type", "application/json")
             connection.setRequestProperty("Accept", "application/json")
+            connection.connectTimeout = 10000
+            connection.readTimeout = 10000
 
-            val responseCode = connection.responseCode
-            BufferedReader(InputStreamReader(connection.inputStream, StandardCharsets.UTF_8)).use { reader ->
-                response = reader.readText()
+            val statusCode = connection.responseCode
+            logger.info("GET 요청 상태 코드: $statusCode for URL: $url")
+
+            val reader = if (statusCode >= 200 && statusCode < 300) {
+                BufferedReader(InputStreamReader(connection.inputStream, StandardCharsets.UTF_8))
+            } else {
+                BufferedReader(InputStreamReader(connection.errorStream ?: return Pair(statusCode, ""), StandardCharsets.UTF_8))
             }
 
-            return Pair(responseCode, response)
+            val responseBody = reader.use { it.readText() }
+            return Pair(statusCode, responseBody)
         } catch (e: Exception) {
-            logger.error("Error during GET request to $url", e)
-            throw e
+            logger.error("HTTP GET 요청 실패: $url", e)
+            return Pair(0, e.message ?: "Unknown error")
+        } finally {
+            connection?.disconnect()
         }
     }
+
 
     /**
      * HTTP POST 요청 실행 - BasicAuth 인증 사용
      */
     private fun executePostRequest(url: String, jsonPayload: String): Pair<Int, String> {
-        val connection: HttpURLConnection
-        val response: String
+        // EDT에서 호출된 경우 백그라운드 스레드로 전환
+        if (ApplicationManager.getApplication().isDispatchThread) {
+            val future = executor.submit(Callable<Pair<Int, String>> {
+                doExecutePostRequest(url, jsonPayload)
+            })
+            return future.get() // 결과 대기
+        }
 
+        // 이미 백그라운드 스레드라면 직접 실행
+        return doExecutePostRequest(url, jsonPayload)
+    }
+
+    /**
+     * 실제 POST 요청 실행 로직
+     */
+    private fun doExecutePostRequest(url: String, jsonPayload: String): Pair<Int, String> {
+        var connection: HttpURLConnection? = null
         try {
+            val settings = AppSettingsState.getInstance()
+            val auth = "${settings.jiraUsername}:${settings.jiraApiToken}"
+            val encodedAuth = Base64.getEncoder().encodeToString(auth.toByteArray(StandardCharsets.UTF_8))
+
             val uri = URI(url)
             connection = uri.toURL().openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
+            connection.setRequestProperty("Authorization", "Basic $encodedAuth")
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.setRequestProperty("Accept", "application/json")
             connection.doOutput = true
-            connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+            connection.connectTimeout = 10000
+            connection.readTimeout = 10000
 
             OutputStreamWriter(connection.outputStream, StandardCharsets.UTF_8).use { writer ->
                 writer.write(jsonPayload)
+                writer.flush()
             }
 
-            val responseCode = connection.responseCode
-            BufferedReader(InputStreamReader(connection.inputStream, StandardCharsets.UTF_8)).use { reader ->
-                response = reader.readText()
+            val statusCode = connection.responseCode
+            logger.info("POST 요청 상태 코드: $statusCode for URL: $url")
+
+            val reader = if (statusCode in 200..299) {
+                BufferedReader(InputStreamReader(connection.inputStream, StandardCharsets.UTF_8))
+            } else {
+                BufferedReader(InputStreamReader(connection.errorStream ?: return Pair(statusCode, ""), StandardCharsets.UTF_8))
             }
 
-            return Pair(responseCode, response)
+            val responseBody = reader.use { it.readText() }
+            return Pair(statusCode, responseBody)
         } catch (e: Exception) {
-            logger.error("Error during POST request to $url", e)
-            throw e
+            logger.error("HTTP POST 요청 실패: $url", e)
+            return Pair(0, e.message ?: "Unknown error")
+        } finally {
+            connection?.disconnect()
         }
     }
-
 
     /**
      * 알림 표시
      */
     private fun showNotification(title: String, content: String, type: NotificationType) {
-        try {
-            ApplicationManager.getApplication().invokeLater {
-                val notificationGroup = NotificationGroupManager.getInstance().getNotificationGroup("Jira Branch Creator")
-                notificationGroup.createNotification(title, content, type).notify(project)
-            }
-        } catch (e: Exception) {
-            logger.error("알림 표시 실패: $title - $content", e)
+        // EDT에서 알림 표시 보장
+        ApplicationManager.getApplication().invokeLater {
+            NotificationGroupManager.getInstance()
+                .getNotificationGroup("Jira Branch Creator")
+                .createNotification(title, content, type)
+                .notify(project)
         }
     }
 
