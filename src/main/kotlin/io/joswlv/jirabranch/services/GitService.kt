@@ -16,6 +16,9 @@ import git4idea.repo.GitRepository
 import io.joswlv.jirabranch.JiraBranchBundle
 import io.joswlv.jirabranch.config.AppSettingsState
 import io.joswlv.jirabranch.model.JiraIssue
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+
 
 /**
  * Git 작업을 처리하는 서비스 클래스
@@ -73,6 +76,37 @@ class GitService(private val project: Project) {
     }
 
     fun commitChanges(commitMessage: String): Boolean {
+        val application = ApplicationManager.getApplication()
+
+        if (application.isDispatchThread) {
+            var result = false
+            val latch = CountDownLatch(1)
+
+            application.executeOnPooledThread {
+                try {
+                    result = doCommitChanges(commitMessage)
+                } finally {
+                    latch.countDown()
+                }
+            }
+
+            try {
+                if (!latch.await(30, TimeUnit.SECONDS)) {
+                    LOG.warn("커밋 작업 시간 초과")
+                    return false
+                }
+            } catch (e: InterruptedException) {
+                LOG.warn("커밋 작업이 중단됨", e)
+                return false
+            }
+
+            return result
+        } else {
+            return doCommitChanges(commitMessage)
+        }
+    }
+
+    private fun doCommitChanges(commitMessage: String): Boolean {
         try {
             val repositories = GitUtil.getRepositories(project) as List<GitRepository>
             if (repositories.isEmpty()) {
@@ -149,6 +183,38 @@ class GitService(private val project: Project) {
      * @return 변경사항이 있으면 true, 없으면 false
      */
     fun hasChanges(): Boolean {
+        // EDT에서 실행되지 않도록 처리
+        val application = ApplicationManager.getApplication()
+
+        if (application.isDispatchThread) {
+            var result = false
+            val latch = CountDownLatch(1)
+
+            application.executeOnPooledThread {
+                try {
+                    result = doHasChanges()
+                } finally {
+                    latch.countDown()
+                }
+            }
+
+            try {
+                if (!latch.await(10, TimeUnit.SECONDS)) {
+                    LOG.warn("변경사항 확인 시간 초과")
+                    return false
+                }
+            } catch (e: InterruptedException) {
+                LOG.warn("변경사항 확인이 중단됨", e)
+                return false
+            }
+
+            return result
+        } else {
+            return doHasChanges()
+        }
+    }
+
+    private fun doHasChanges(): Boolean {
         try {
             val repository = getRepository() ?: return false
 
@@ -180,6 +246,37 @@ class GitService(private val project: Project) {
      */
     @Suppress("UNCHECKED_CAST")
     fun getCurrentBranch(): String? {
+        val application = ApplicationManager.getApplication()
+
+        if (application.isDispatchThread) {
+            var result: String? = null
+            val latch = CountDownLatch(1)
+
+            application.executeOnPooledThread {
+                try {
+                    result = doGetCurrentBranch()
+                } finally {
+                    latch.countDown()
+                }
+            }
+
+            try {
+                if (!latch.await(5, TimeUnit.SECONDS)) {
+                    LOG.warn("브랜치 조회 시간 초과")
+                    return null
+                }
+            } catch (e: InterruptedException) {
+                LOG.warn("브랜치 조회가 중단됨", e)
+                return null
+            }
+
+            return result
+        } else {
+            return doGetCurrentBranch()
+        }
+    }
+
+    private fun doGetCurrentBranch(): String? {
         try {
             val repositories = GitUtil.getRepositories(project) as List<GitRepository>
             if (repositories.isEmpty()) {
@@ -209,6 +306,37 @@ class GitService(private val project: Project) {
      */
     @Suppress("UNCHECKED_CAST")
     fun getRepository(): GitRepository? {
+        val application = ApplicationManager.getApplication()
+
+        if (application.isDispatchThread) {
+            var result: GitRepository? = null
+            val latch = CountDownLatch(1)
+
+            application.executeOnPooledThread {
+                try {
+                    result = doGetRepository()
+                } finally {
+                    latch.countDown()
+                }
+            }
+
+            try {
+                if (!latch.await(5, TimeUnit.SECONDS)) {
+                    LOG.warn("저장소 조회 시간 초과")
+                    return null
+                }
+            } catch (e: InterruptedException) {
+                LOG.warn("저장소 조회가 중단됨", e)
+                return null
+            }
+
+            return result
+        } else {
+            return doGetRepository()
+        }
+    }
+
+    private fun doGetRepository(): GitRepository? {
         try {
             val repositories = GitUtil.getRepositories(project) as List<GitRepository>
             if (repositories.isEmpty()) {
@@ -230,6 +358,38 @@ class GitService(private val project: Project) {
      * 브랜치가 존재하는지 확인
      */
     fun branchExists(branchName: String, repository: GitRepository): Boolean {
+        // EDT에서 실행되지 않도록 처리
+        val application = ApplicationManager.getApplication()
+
+        if (application.isDispatchThread) {
+            var result = false
+            val latch = CountDownLatch(1)
+
+            application.executeOnPooledThread {
+                try {
+                    result = doBranchExists(branchName, repository)
+                } finally {
+                    latch.countDown()
+                }
+            }
+
+            try {
+                if (!latch.await(5, TimeUnit.SECONDS)) {
+                    LOG.warn("브랜치 존재 확인 시간 초과")
+                    return false
+                }
+            } catch (e: InterruptedException) {
+                LOG.warn("브랜치 존재 확인이 중단됨", e)
+                return false
+            }
+
+            return result
+        } else {
+            return doBranchExists(branchName, repository)
+        }
+    }
+
+    private fun doBranchExists(branchName: String, repository: GitRepository): Boolean {
         return repository.branches.localBranches.any { it.name == branchName } ||
                 repository.branches.remoteBranches.any { it.nameForLocalOperations == branchName }
     }
@@ -239,6 +399,12 @@ class GitService(private val project: Project) {
      * 새 브랜치 생성 시 defaultBaseBranch로 먼저 체크아웃한 후 새 브랜치 생성
      */
     fun createAndCheckoutBranch(branchName: String) {
+        ApplicationManager.getApplication().executeOnPooledThread {
+            doCreateAndCheckoutBranch(branchName)
+        }
+    }
+
+    private fun doCreateAndCheckoutBranch(branchName: String) {
         try {
             val repository = getRepository() ?: return
             val brancher = GitBrancher.getInstance(project)
@@ -251,13 +417,15 @@ class GitService(private val project: Project) {
                 // 이미 있는 브랜치로 체크아웃
                 brancher.checkout(branchName, false, listOf(repository)) {
                     // 체크아웃 성공 후 이벤트 발생
-                    project.messageBus.syncPublisher(GitBranchChangeListener.TOPIC).branchChanged()
+                    ApplicationManager.getApplication().invokeLater {
+                        project.messageBus.syncPublisher(GitBranchChangeListener.TOPIC).branchChanged()
 
-                    showNotification(
-                        JiraBranchBundle.message("notification.branch.checkout"),
-                        JiraBranchBundle.message("notification.branch.checkout.existing.msg", branchName),
-                        NotificationType.INFORMATION
-                    )
+                        showNotification(
+                            JiraBranchBundle.message("notification.branch.checkout"),
+                            JiraBranchBundle.message("notification.branch.checkout.existing.msg", branchName),
+                            NotificationType.INFORMATION
+                        )
+                    }
                 }
             } else {
                 // 기준 브랜치 가져오기
@@ -270,13 +438,15 @@ class GitService(private val project: Project) {
                     brancher.checkoutNewBranch(branchName, listOf(repository))
 
                     // 브랜치 변경 이벤트 발생
-                    project.messageBus.syncPublisher(GitBranchChangeListener.TOPIC).branchChanged()
+                    ApplicationManager.getApplication().invokeLater {
+                        project.messageBus.syncPublisher(GitBranchChangeListener.TOPIC).branchChanged()
 
-                    showNotification(
-                        JiraBranchBundle.message("notification.branch.created"),
-                        JiraBranchBundle.message("notification.branch.created.msg", branchName),
-                        NotificationType.INFORMATION
-                    )
+                        showNotification(
+                            JiraBranchBundle.message("notification.branch.created"),
+                            JiraBranchBundle.message("notification.branch.created.msg", branchName),
+                            NotificationType.INFORMATION
+                        )
+                    }
                 }
             }
         } catch (e: Exception) {

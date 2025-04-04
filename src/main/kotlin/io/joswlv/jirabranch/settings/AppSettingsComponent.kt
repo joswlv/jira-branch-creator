@@ -1,14 +1,14 @@
 package io.joswlv.jirabranch.settings
 
 import com.intellij.ide.BrowserUtil
-import com.intellij.notification.NotificationGroupManager
-import com.intellij.notification.NotificationType
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.ProjectManager
+import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
@@ -153,7 +153,6 @@ class AppSettingsComponent : Configurable {
                 String(githubTokenField?.password ?: CharArray(0)) != settings.githubToken ||
                 defaultBaseBranchField?.text != settings.defaultBaseBranch ||
                 branchFormatField?.text != settings.branchFormat
-        // 제외 상태 목록은 동적으로 수정되므로 여기서 확인할 필요 없음
     }
 
     override fun apply() {
@@ -207,10 +206,9 @@ class AppSettingsComponent : Configurable {
         val token = String(jiraApiTokenField?.password ?: CharArray(0))
 
         if (url.isEmpty() || username.isEmpty() || token.isEmpty()) {
-            showNotification(
+            showMessageDialog(
                 "Connection Test Failed",
                 "Please fill in all JIRA connection fields (URL, Username, and API Token)",
-                NotificationType.ERROR
             )
             return
         }
@@ -251,10 +249,9 @@ class AppSettingsComponent : Configurable {
                         val response = reader.readText()
                         reader.close()
 
-                        showNotification(
+                        showMessageDialog(
                             "Connection Successful",
                             "Successfully connected to JIRA server!",
-                            NotificationType.INFORMATION
                         )
                     } else {
                         // 실패
@@ -265,17 +262,15 @@ class AppSettingsComponent : Configurable {
                             else -> "Failed with HTTP error code: $responseCode"
                         }
 
-                        showNotification(
+                        showMessageDialog(
                             "Connection Failed",
-                            errorMessage,
-                            NotificationType.ERROR
+                            errorMessage
                         )
                     }
                 } catch (e: Exception) {
-                    showNotification(
+                    showMessageDialog(
                         "Connection Failed",
                         "Could not connect to JIRA server: ${e.message}",
-                        NotificationType.ERROR
                     )
                 }
             }
@@ -283,10 +278,11 @@ class AppSettingsComponent : Configurable {
     }
 
     /**
-     * 알림 표시
+     * 알림 표시 (다이얼로그로 변경)
      */
-    private fun showNotification(title: String, content: String, type: NotificationType) {
-        val notificationGroup = NotificationGroupManager.getInstance().getNotificationGroup("Jira Branch Creator")
-        notificationGroup.createNotification(title, content, type).notify(ProjectManager.getInstance().defaultProject)
+    private fun showMessageDialog(title: String, content: String) {
+        ApplicationManager.getApplication().invokeLater {
+            Messages.showInfoMessage(content, title)
+        }
     }
 }
