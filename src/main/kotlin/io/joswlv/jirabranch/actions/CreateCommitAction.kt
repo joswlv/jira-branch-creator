@@ -4,7 +4,6 @@ import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
@@ -26,8 +25,8 @@ class CreateCommitAction : AnAction(), DumbAware {
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        val gitService = project.service<GitService>()
-        val jiraService = project.service<JiraService>()
+        val gitService = GitService.getInstance(project)
+        val jiraService = JiraService.getInstance(project)
 
         LOG.info("JIRA 이슈 키를 포함한 커밋 생성 액션 실행")
 

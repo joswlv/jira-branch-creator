@@ -4,15 +4,14 @@ import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.components.service
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
-import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.MessageDialogBuilder
+import com.intellij.openapi.ui.Messages
 import git4idea.GitUtil
 import io.joswlv.jirabranch.JiraBranchBundle
 import io.joswlv.jirabranch.config.AppSettingsState
@@ -90,7 +89,7 @@ class CreateBranchFromJiraAction : AnAction(), DumbAware {
         }
 
         // Git 서비스를 통해 브랜치 이름 생성
-        val gitService = project.service<GitService>()
+        val gitService = GitService.getInstance(project)
         val branchName = gitService.createBranchName(selectedIssue)
 
         // 브랜치 이름 확인 다이얼로그

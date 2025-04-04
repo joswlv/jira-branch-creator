@@ -15,7 +15,7 @@ import javax.swing.JComponent
  * 커밋 메시지 입력 다이얼로그
  */
 class CommitMessageDialog(
-    private val project: Project,
+    project: Project,
     private val issueKey: String
 ) : DialogWrapper(project) {
     private val messageArea = JBTextArea().apply {
