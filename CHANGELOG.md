@@ -2,10 +2,14 @@
 
 ## [Unreleased]
 
+## [0.1.3] - 2025-09-16
+
+- JIRA API V2 support termination
+
 ## [0.1.2] - 2025-04-03
 
 - Replace deprecated API
-- Bug fix Jira connection test button 
+- Bug fix Jira connection test button
 
 ## [0.1.0] - 2025-03-16
 
@@ -38,6 +42,7 @@
 - 브랜치 생성 시 베이스 브랜치를 기준으로 생성하는 기능 개선
 - Jira API 연결 테스트 기능 추가로 설정 오류 디버깅 용이성 향상
 
-[Unreleased]: https://github.com/joswlv/jira-branch-creator/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/joswlv/jira-branch-creator/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/joswlv/jira-branch-creator/compare/v0.1.0...v0.1.2
 [0.1.1]: https://github.com/joswlv/jira-branch-creator/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/joswlv/jira-branch-creator/commits/v0.1.0

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(/mcp__serena__initial_instructions)",
+      "Read(//usr/local/bin/**)",
+      "Bash(env)",
+      "Bash(./gradlew:*)",
+      "WebFetch(domain:developer.atlassian.com)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -228,7 +228,7 @@ class JiraService(private val project: Project) {
     }
 
     /**
-     * JQL로 이슈 검색 - Jira REST API v2 문서 기반으로 수정됨
+     * JQL로 이슈 검색 - Jira REST API v3 문서 기반
      */
     private fun searchIssues(jql: String): List<JiraIssue> {
         try {
@@ -237,7 +237,7 @@ class JiraService(private val project: Project) {
 
             // URL 인코딩을 사용하여 JQL 쿼리 파라미터 준비
             val encodedJql = java.net.URLEncoder.encode(jql, "UTF-8")
-            val endpoint = "$jiraUrl/rest/api/2/search?jql=$encodedJql&startAt=0&maxResults=50&fields=summary,description,status,assignee,issuetype,priority"
+            val endpoint = "$jiraUrl/rest/api/3/search/jql?jql=$encodedJql&maxResults=50&fields=summary,description,status,assignee,issuetype,priority"
 
             logger.debug("JIRA 검색 요청: GET $endpoint")
             val response = executeGetRequest(endpoint)
